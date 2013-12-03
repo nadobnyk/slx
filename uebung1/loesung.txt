@@ -1,0 +1,14 @@
+﻿Lösung der Aufgabenserie 1
+Konrad Nadobny
+
+
+Aufgabe 1:
+Zu den gegebenen Klassendiagrammen passen folgende Objektdiagramme:
+a) 2, 3, 4, 5
+b) 4
+
+
+Aufgabe 2:
+Zu den gegebenen Sachverhalten passt jeweils das folgende Klassendiagramm:
+a) 1
+b) 2

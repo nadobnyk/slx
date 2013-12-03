@@ -1,0 +1,26 @@
+Aufgabe 3 a)
+A -> entry 	==> x=2
+A -> exit 	==> x=1
+A -> e2 -> B 	==> x=2
+B -> entry	==> x=3
+B -> e3 -> B	==> x=4
+B -> e1 -> B	==> x=2
+B -> e2 -> C	==> findet nicht statt,da nicht x>5
+
+==> Antwort: x=2
+
+Aufgabe 3 B)
+
+Start -> A	==> x=3
+A -> entry	==> x=4
+A -> e4		==> x=2
+Start -> B	==> x=4
+B -> entry	==> x=2
+B -> exit	==> x=4
+B -> e2 -> C	==> x=5
+C -> e4		==> x=6
+C -> exit	==> x=5
+C -> e1	-> B	==> x=5
+B -> entry 	==> x=3
+
+==> Antwort: x=3

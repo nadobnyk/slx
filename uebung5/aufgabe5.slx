@@ -1,0 +1,201 @@
+//*****************************************************************************
+//	Aufgabe 5 - Konrad Nadobny, Elisa Untermann - Vorlesung MCI
+//  Version: 0.1 - 28.11.2013
+//
+// 1 Zeiteinheit = 1 Sekunde
+//*****************************************************************************
+public module Variables{
+	//SETTINGS
+	int availableProcessors 		=1; 			//Vorhande Gabelstapler (ags = 1)
+	int availableWorkstations		=4; 			//Vorhande Arbeitsstationen (aas = 4)
+
+	int enginesRate					=8;				//Zeiteinheit pro neuen Motor (mtba = 8)
+	int packingRates				=30;			//Zeiteinheit die benötigt wird, um einen Motor zu verpacken (mvt = 30)
+	int packingCapacity				=3;				//Kapazität der einzelnen Arbeitsstationen (3)
+
+	int loadingRate					=5; 			//Zeit, die ein Gabelstapler zum Motoraufladen benötigt (5)
+	int multipiler_timeForTrip		=5;				//Zeit, die zum Fahren zur Arbeitsstation benötigt wird (5) --> Multipliziertmit Index der Arbeitsstation beginnend bei 1 ==> KÖNNTE AUCH DOPPELT SEIN (einfacher weg?)
+	int unloadingRate				=5;				//Zeit, die ein Gabelstapler zum Motorentladen benötigt (5)
+
+	
+	//MODELL DATA
+	control public int count_sent	=0;				// Kontrollvariable für insgesamt versendete Motoren (mversand=0)
+	set (Engine) testingarea; 						//Warteschleife für Motoren
+	set (Workstation) packingarea; 					//Arbeitsstationen für Motoren
+	set (Processor) processors; 					//Gabelstapler
+	set (Workstation) free_workstations;
+
+
+	//Time Boundries
+	//int shutdown_time 				= 24*60*60; 	//Zeitspanne der Simulation [in sekunden] ==> 1 Tag
+	int shutdown_time 				= 60*60; 		//Zeitspanne der Simulation [in sekunden] ==> 1 Stunde
+	//int shutdown_time 				= 60; 			//Zeitspanne der Simulation [in sekunden] ==> 1 Minute
+
+	//SIMULATION VALUES
+	int engines_in;
+	int engines_waiting;
+	int engines_transport;
+	int engines_processing;
+	int engines_out;
+
+}
+
+
+public module Model{
+	public class Engine{
+		initial{
+			engines_in++;
+			engines_waiting++;
+			place ME into testingarea;
+			print (ME) "[INFO] _ \tIN\n";
+		}
+		final{
+			print (ME) "[INFO] _ \tOUT\n";
+			engines_out++;
+		}
+	}
+
+	public class Workstation(int number){
+		int idnumber;
+		int timeForTrip; 
+		set (Processor) processors_on_their_way;
+		set (Engine) packinglist;
+		pointer(Engine) my_engine_packing;
+
+		initial{
+			idnumber = number;
+			timeForTrip = idnumber * multipiler_timeForTrip;
+			place ME into packingarea;
+			place ME into free_workstations;
+			print(ME, timeForTrip) "[INIT] NEW _\t  [Time tor trip:_]\n";
+		}
+		actions{
+			print(ME) "[INFO] _ \tACTIVATED\n";
+			forever{
+				if(ME is_in free_workstations && packinglist.size>0){
+					if(packinglist.size>=packingCapacity){
+						print (ME) "[INFO] _ \tFULL\n";
+						remove ME from free_workstations;
+					}
+					my_engine_packing = first Engine in packinglist;
+					advance packingRates;
+					remove my_engine_packing from packinglist;
+					print (ME, my_engine_packing) "[INFO] _ \tPACKS\t_\n";
+					engines_processing--;
+					destroy my_engine_packing;
+				}else{
+					if(ME is_not_in free_workstations && packinglist.size<packingCapacity){
+						place ME in free_workstations;
+					}
+					else{
+						wait until packinglist.size<packingCapacity;
+					}
+					if(packinglist.size<=0){
+						wait until packinglist.size>0;
+					}
+				}
+			}
+		}
+	}
+
+	public class Processor(int number){
+		int idnumber;
+		pointer (Engine) my_engine_transport;
+		pointer (Workstation) my_workstation;
+		initial{
+			idnumber = number;
+			place ME into processors;
+			print(ME) "[INIT] NEW _\n";
+		}
+		actions{
+		print(ME) "[INFO] _ \tACTIVATED\n";
+
+			forever{
+				//wenn Warteschleife nicht leer
+				if(testingarea.size>0){
+					//Motor aus Warteschleife nehmen
+					print (ME, my_engine_transport) "[INFO] _ \tTAKES\t _\n";
+					my_engine_transport = first Engine in testingarea;
+					engines_transport++;
+					remove my_engine_transport from testingarea;
+					advance loadingRate;
+					engines_waiting--;
+
+					//freie Arbeitsstation suchen
+					private int i;
+					
+					if(free_workstations.size>0){
+						i=1;
+						//prüfe pro Arbeitsstation
+						while(i<=packingarea.size){
+							my_workstation = position(i) in packingarea;
+							
+							//wenn die Arbeitsstation noch kapazitäten hat, dann gebe ihr den motor
+							if(my_workstation->packinglist.size+my_workstation->processors_on_their_way.size<packingCapacity){
+								print (ME, my_engine_transport, my_workstation) "[INFO] _ \tDRIVES\t _ \tTO\t _\n";
+								place ME into my_workstation->processors_on_their_way;
+								advance my_workstation->timeForTrip;
+								advance unloadingRate;
+								engines_transport--;
+								print (ME, my_engine_transport, my_workstation) "[INFO] _ \tUNLOADS\t _ \tAT\t _\n";
+								remove ME from my_workstation->processors_on_their_way;
+								place my_engine_transport into my_workstation->packinglist;
+								engines_processing++;
+								advance my_workstation->timeForTrip;
+								break;
+							}
+							else{
+								i++;
+							}
+						}
+					}
+					else{
+						wait until 	free_workstations.size>0;
+					}
+				}
+				else{
+					wait until testingarea.size>0;
+				}
+			}
+		}
+	}
+}
+
+module Executable{
+	procedure main{
+		print "/****Simulation by Konrad Nadobny and Elisa Untermann****\\\n";
+		
+		print "-----------------------------------------INIT--------------------------------------\n\n";
+		
+		//Initialisierung		
+		engines_in = 0;
+		engines_waiting = 0;
+		engines_transport = 0;
+		engines_processing = 0;
+		engines_out = 0;
+
+		private int i;
+
+		//Arbeitsstationen erstellen
+		for(i=1; i<=availableWorkstations; i++){
+			activate new Workstation(i);
+		}
+
+		//Gabelstapler erstellen
+		pointer (Processor) my_processor;
+		for(i=1; i<=availableProcessors; i++){
+			activate new Processor(i);
+		}
+		
+		print "-----------------------------------------START-------------------------------------\n\n\n\n";
+		
+		//Simulation
+		while(time < shutdown_time){
+			advance enginesRate;
+			new Engine;
+		}
+
+		print "------------------------------------------END--------------------------------------\n\n";
+		print(time, engines_in,engines_waiting,engines_transport,engines_processing,engines_out) "TIME:\t\t_secounds\nIN:\t\t_\nWAITING:\t\t_\nTRANSPORT:\t\t_\nPROCESSING:\t\t_\nOUT:\t\t_\n\n\n";
+	}
+}
