@@ -10,19 +10,29 @@ int anzahlLbs = 9;
 double hfsSchrittDauer = 4;
 double verpackZeit = 30;
 
+control boolean stop_haken = FALSE;
+set(LB) lbs; // Menge aller Laufbänder
+
+pointer(TestBereich) testBereich;
+
 passive class Motor(int mtyp) {
 	int typ = mtyp;
 	double erzeugungsZeitpunkt;
+
+	initial{
+		erzeugungsZeitpunkt = time;
+	}
 }
 
 class MotorenAnkunft(int mtyp, double aps) {
 	int typ=mtyp;
 	double anzahlProStunde=aps;
+	pointer(Motor) my_motor;
 
 	actions {
 		//erstellt motoren alle 3600/aps sekunden
 		forever{
-			print(time, typ) "____ -- _____";
+			place new Motor(typ) into testBereich->wartende_motoren;
 			advance (3600/anzahlProStunde);
 		}
 	}
@@ -31,50 +41,120 @@ class MotorenAnkunft(int mtyp, double aps) {
 class HFS(int anzahlHaken_) {
 	int anzahlHaken = anzahlHaken_;
 	set(Haken) haken;
+	pointer(Haken) my_last_haken;
 	
 	initial {
 		int i;
 		for (i=0; i<anzahlHaken; i++) {
-			place new Haken() into haken;
+			place new Haken(i+1) into haken;
 		}
 	}
 	
 	actions {
-		// ...
+		forever{
+			if(stop_haken){
+				wait until(!stop_haken);
+			}else{
+				advance hfsSchrittDauer;
+				my_last_haken = last Haken in haken;
+				remove last Haken from haken;
+				place my_last_haken into haken before first Haken in haken;
+			}
+		}
 	}
 }
 
 pointer(HFS) hfs;
 
-passive class Haken {
+passive class Haken (int id) {
 	pointer(Motor) motor;
+	int number = id;
 }
 
 // Der Testbereich hängt die Motoren in der
 // Reihenfolge ihrer Ankunft auf der HFS auf.
 class TestBereich {
+	set(Motor) ranked FIFO wartende_motoren;
+	pointer(Haken) my_active_haken;
 	actions {
-		// ...
-	}
-}
+		forever{
+			my_active_haken = first Haken in hfs->haken; //gibt den haken vor dem testbereich aus
 
-pointer(TestBereich) testBereich;
+			if (my_active_haken->motor == NULL && wartende_motoren.size>0){
+				stop_haken = TRUE;
 
-class LB {
-	int lbPosition; // Position des Laufbands im Raum, LB 1 befindet sich vor Haken-Index 2
-	set(Motor) motoren; // Zustand der Palette
-	int motorTyp; // aktueller Typ
-	
-	actions {
-		lbPosition= position(ME) in lbs;
-		pointer(Haken) hakenAmLb;
-		forever {
-			// ...
+				my_active_haken->motor = first Motor in wartende_motoren;
+				remove first Motor from wartende_motoren;
+				print(my_active_haken->motor->typ,my_active_haken->number) "Motortyp __ auf Haken __ aufgehängt \n";
+
+				advance 10;
+				stop_haken = FALSE;
+			}
+			else{
+				advance 1;
+			}
 		}
 	}
 }
 
-set(LB) lbs; // Menge aller Laufbänder
+class LB {
+	int lbPosition; // Position des Laufbands im Raum, LB 1 befindet sich vor Haken-Index 2
+	set(Motor) motoren; // Zustand der Palette
+	int motorTyp=0; // aktueller Typ
+	boolean testMotorenTypAvailablity;
+	
+	actions {
+		lbPosition= position(ME) in lbs;
+		pointer(Haken) hakenAmLb;
+		pointer(Motor) lastMotor;
+		forever {
+
+			//Verpacke, wenn drei gleiche motoren auf LB vorhanden
+			if(motoren.size>=3){
+				advance verpackZeit;
+				print(lbPosition, (first Motor in motoren)->typ) "Laufband __ hat 3 Motoren vom Typ __ versand\n";
+				int i;
+				for (i=0; i<3;i++){
+					remove first Motor from motoren;
+				}
+			}
+			//hebe reservierung auf, wenn motorentyp nicht benötigt
+			if(motoren.size%3==0){
+				motorTyp=0;
+			}
+
+			//prüfe, ob motor genommen wird, wenn motor an haken vorhanden
+			hakenAmLb = position(lbPosition+1) in hfs->haken;
+			if (hakenAmLb->motor != NULL){
+/*			
+				//teste ob motorentyp reserviert ist
+				testMotorenTypAvailablity=TRUE;
+				pointer(LB) my_LB = ME;
+				while(successor(my_LB) in lbs !=NULL){
+					my_LB=successor(my_LB) in lbs;
+					if(my_LB->motorTyp == hakenAmLb->motor->typ){
+						testMotorenTypAvailablity=FALSE;
+						print (my_LB, hakenAmLb->motor->typ) "__ benötigt Motorentyp __";
+					}
+				}
+*/
+				lastMotor = last Motor in motoren;
+				if(testMotorenTypAvailablity && motoren.size<9 && (motoren.size%3==0 || lastMotor->typ==hakenAmLb->motor->typ)){
+					stop_haken = TRUE;
+					motorTyp = hakenAmLb->motor->typ;
+					place hakenAmLb->motor into motoren;
+					print(hakenAmLb->motor->typ,hakenAmLb->number) "Motortyp __ von Haken __ genommen \n";
+					hakenAmLb->motor = NULL;
+					advance 10;
+					stop_haken = FALSE;
+				}
+			}
+			else{
+				advance 1;
+			}
+		}
+	}
+}
 
 procedure erzeugeLbs(int anzahl) {
 	pointer(LB) lb;
@@ -99,7 +179,7 @@ procedure main() {
 	
 	erzeugeLbs(anzahlLbs);
 	
-	testBereich = new TestBereich();
+	testBereich = new TestBereich() ;
 	activate testBereich;
 	
 	erzeugeMotorenAnkunftsProzess( 3, 9);
