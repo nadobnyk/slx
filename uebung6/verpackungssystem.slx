@@ -1,0 +1,123 @@
+#define SLX2 ON
+
+module verpackungssystem {
+
+// Zeiteinheit: 1 Sekunde
+
+int anzahlHaken = 40;
+int anzahlLbs = 9;
+
+double hfsSchrittDauer = 4;
+double verpackZeit = 30;
+
+passive class Motor(int mtyp) {
+	int typ = mtyp;
+	double erzeugungsZeitpunkt;
+}
+
+class MotorenAnkunft(int mtyp, double aps) {
+	int typ = mtyp;
+	double anzahlProStunde = aps;
+	
+	actions {
+		// ...
+	}
+}
+
+class HFS(int anzahlHaken_) {
+	int anzahlHaken = anzahlHaken_;
+	set(Haken) haken;
+	
+	initial {
+		int i;
+		for (i=0; i<anzahlHaken; i++) {
+			place new Haken() into haken;
+		}
+	}
+	
+	actions {
+		// ...
+	}
+}
+
+pointer(HFS) hfs;
+
+passive class Haken {
+	pointer(Motor) motor;
+}
+
+// Der Testbereich hängt die Motoren in der
+// Reihenfolge ihrer Ankunft auf der HFS auf.
+class TestBereich {
+	actions {
+		// ...
+	}
+}
+
+pointer(TestBereich) testBereich;
+
+class LB {
+	int lbPosition; // Position des Laufbands im Raum, LB 1 befindet sich vor Haken-Index 2
+	set(Motor) motoren; // Zustand der Palette
+	int motorTyp; // aktueller Typ
+	
+	actions {
+		lbPosition= position(ME) in lbs;
+		pointer(Haken) hakenAmLb;
+		forever {
+			// ...
+		}
+	}
+}
+
+set(LB) lbs; // Menge aller Laufbänder
+
+procedure erzeugeLbs(int anzahl) {
+	pointer(LB) lb;
+	int i;
+	for (i=0; i<anzahl; i++) {
+		lb = new LB();
+		place lb into lbs;
+		activate lb;
+	}
+}
+
+procedure erzeugeMotorenAnkunftsProzess(int mtyp, double anzahlProStunde) {
+	pointer(MotorenAnkunft) ma;
+	ma = new MotorenAnkunft(mtyp,anzahlProStunde);
+	activate ma;
+}
+
+procedure main() {
+	hfs = new HFS(anzahlHaken);
+	activate hfs;
+	
+	erzeugeLbs(anzahlLbs);
+	
+	testBereich = new TestBereich();
+	activate testBereich;
+	
+	erzeugeMotorenAnkunftsProzess( 3, 9);
+	erzeugeMotorenAnkunftsProzess( 4, 9);
+	erzeugeMotorenAnkunftsProzess( 5, 6);
+	erzeugeMotorenAnkunftsProzess( 1, 13);
+	erzeugeMotorenAnkunftsProzess( 2, 11);
+	erzeugeMotorenAnkunftsProzess( 6, 1.5);
+	erzeugeMotorenAnkunftsProzess( 9, 1.5);
+	erzeugeMotorenAnkunftsProzess(13, 1);
+	erzeugeMotorenAnkunftsProzess(14, 0.5);
+	erzeugeMotorenAnkunftsProzess(15, 0.5);
+	erzeugeMotorenAnkunftsProzess(10, 1);
+	erzeugeMotorenAnkunftsProzess(11, 1);
+	erzeugeMotorenAnkunftsProzess(12, 1);
+	erzeugeMotorenAnkunftsProzess( 7, 1.5);
+	erzeugeMotorenAnkunftsProzess( 8, 1.5);
+	erzeugeMotorenAnkunftsProzess(16, 0.5);
+	erzeugeMotorenAnkunftsProzess(17, 0.5);
+	
+	advance 60*60*24;
+		
+	report(system);
+}
+
+}
