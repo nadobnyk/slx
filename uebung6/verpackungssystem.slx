@@ -16,11 +16,15 @@ passive class Motor(int mtyp) {
 }
 
 class MotorenAnkunft(int mtyp, double aps) {
-	int typ = mtyp;
-	double anzahlProStunde = aps;
-	
+	int typ=mtyp;
+	double anzahlProStunde=aps;
+
 	actions {
-		// ...
+		//erstellt motoren alle 3600/aps sekunden
+		forever{
+			print(time, typ) "____ -- _____";
+			advance (3600/anzahlProStunde);
+		}
 	}
 }
 
@@ -89,6 +93,7 @@ procedure erzeugeMotorenAnkunftsProzess(int mtyp, double anzahlProStunde) {
 }
 
 procedure main() {
+
 	hfs = new HFS(anzahlHaken);
 	activate hfs;
 	
