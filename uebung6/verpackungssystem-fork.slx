@@ -109,7 +109,7 @@ class LB {
 	int lbPosition; // Position des Laufbands im Raum, LB 1 befindet sich vor Haken-Index 2
 	set(Motor) motoren; // Zustand der Palette
 	int motorTyp=0; // aktueller Typ
-	boolean testMotorenTypAvailablity = TRUE;
+	boolean testMotorenTypAvailablity;
 
 	
 	actions {
@@ -117,15 +117,53 @@ class LB {
 		pointer(Haken) hakenAmLb;
 		pointer(Motor) lastMotor;
 		pointer(LB) my_LB;
-		forever {
-			lastMotor = last Motor in motoren;
-			hakenAmLb = position(lbPosition+1) in hfs->haken;
-			testMotorenTypAvailablity=TRUE;
-			my_LB = ME;
+		
+		//motoren abnehmen
+		fork{
+			forever{
+				//prüfe, ob aktueller motor am haken von laufband benötigt wird (wenn motor vorhanden, platz auf laufband und richtiger motorentyp
+				lastMotor = last Motor in motoren;
+				hakenAmLb = position(lbPosition+1) in hfs->haken;
+				if (hakenAmLb->motor != NULL && motoren.size < 9 && (motoren.size%3 == 0 || lastMotor->typ == hakenAmLb->motor->typ)){
+						//teste ob motorentyp reserviert ist
+						testMotorenTypAvailablity = TRUE;
+						my_LB = ME;
+						while(successor(my_LB) in lbs !=NULL){
+							my_LB=successor(my_LB) in lbs;
+							if(my_LB->motorTyp == hakenAmLb->motor->typ){
+								testMotorenTypAvailablity=FALSE;
+								print (ME, my_LB, hakenAmLb->motor->typ) "[_]\t\t\t\t__ benötigt Motorentyp __\n";
+							}
+						}
+						//wenn motor nicht reserviert, dann nehme den motor
+						if(testMotorenTypAvailablity){
+							stop_haken = TRUE;
+							place hakenAmLb->motor into motoren;
+							print(ME, hakenAmLb->motor->typ,hakenAmLb->number) "[_]\t\t\t\tMotortyp __ von Haken __ genommen \n";
+							hakenAmLb->motor = NULL;
 
-			//subprozess: motoren verpacken
-			fork{
-				//verpacke, wenn 3 gleiche motoren vorhanden
+							//motortyp reservieren, wenn noch zusätzliche motoren benötigt werden
+							if(motoren.size%3 == 0){
+								motorTyp = 0;
+							}else{
+								motorTyp = hakenAmLb->motor->typ;
+							}
+							advance 10;
+							stop_haken = FALSE;
+						}
+						else{
+							advance 1;
+						}
+				}
+				else{
+					advance 1;
+				}
+			}		
+		}
+
+		//motoren verpacken
+		fork{
+			forever{
 				if(motoren.size>=3){
 					print(ME, (first Motor in motoren)->typ) "[_]\t\t\t\t 3 Motoren vom Typ __ versand\n";
 					int i;
@@ -135,44 +173,8 @@ class LB {
 						remove first Motor from motoren;
 					}
 					advance verpackZeit;
-				}
-				terminate;
-			}
-			
-			//hebe reservierung auf, wenn motorentyp nicht benötigt
-			if(motoren.size%3==0){
-				motorTyp=0;
-			}
-
-			//subprozess: motoren abnehmen
-			fork{
-				//prüfe, ob motor genommen wird, wenn motor an haken vorhanden
-				if (hakenAmLb->motor != NULL && motoren.size < 9 && (motoren.size%3 == 0 || lastMotor->typ == hakenAmLb->motor->typ)){
-						//teste ob motorentyp reserviert ist
-						while(successor(my_LB) in lbs !=NULL){
-							my_LB=successor(my_LB) in lbs;
-							if(my_LB->motorTyp == hakenAmLb->motor->typ){
-								testMotorenTypAvailablity=FALSE;
-								print (ME, my_LB, hakenAmLb->motor->typ) "[_]\t\t\t\t__ benötigt Motorentyp __\n";
-							}
-						}
-						if(testMotorenTypAvailablity){
-							stop_haken = TRUE;
-							motorTyp = hakenAmLb->motor->typ;
-							place hakenAmLb->motor into motoren;
-							print(ME, hakenAmLb->motor->typ,hakenAmLb->number) "[_]\t\t\t\tMotortyp __ von Haken __ genommen \n";
-							hakenAmLb->motor = NULL;
-							advance 10;
-							stop_haken = FALSE;
-						}
-						else{
-							advance 1;
-						}
-						terminate;
-				}
-				else{
+				}else{
 					advance 1;
-					terminate;
 				}
 			}
 		}
