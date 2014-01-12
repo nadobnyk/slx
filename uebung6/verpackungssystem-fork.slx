@@ -140,14 +140,13 @@ class LB {
 							stop_haken = TRUE;
 							place hakenAmLb->motor into motoren;
 							print(ME, hakenAmLb->motor->typ,hakenAmLb->number) "[_]\t\t\t\tMotortyp __ von Haken __ genommen \n";
-							hakenAmLb->motor = NULL;
-
 							//motortyp reservieren, wenn noch zusätzliche motoren benötigt werden
 							if(motoren.size%3 == 0){
 								motorTyp = 0;
 							}else{
 								motorTyp = hakenAmLb->motor->typ;
 							}
+							hakenAmLb->motor = NULL;
 							advance 10;
 							stop_haken = FALSE;
 						}
@@ -169,7 +168,7 @@ class LB {
 					int i;
 					for (i=0; i<3;i++){
 						countPackedEngines++;
-						aboluteProcessingTime = aboluteProcessingTime + time - (first Motor in motoren)->erzeugungsZeitpunkt;
+						aboluteProcessingTime = aboluteProcessingTime + (time - (first Motor in motoren)->erzeugungsZeitpunkt);
 						remove first Motor from motoren;
 					}
 					advance verpackZeit;
@@ -228,7 +227,7 @@ procedure main() {
 	advance 60*60*24;
 	
 	print "\n\n**********Simulation Analysis**************\n";
-	print(countPackedEngines, maxWaitingEngines, (double) aboluteProcessingTime/countPackedEngines) "Verpackte Motoren:\t\t\t_\nMaximale Wartseschlange:\t_\nDurchschn. Durchlaufzeit:\t_\n\n";
+	print(countPackedEngines, maxWaitingEngines, (double) aboluteProcessingTime/countPackedEngines) "Verpackte Motoren:\t\t_\nMaximale Wartseschlange:\t_\nDurchschn. Durchlaufzeit:\t_\n\n";
 
 	report(system);
 }
