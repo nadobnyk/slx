@@ -1,3 +1,7 @@
+﻿Lösung der Aufgabe 6
+Konrad Nadobny
+Elisa Untermann
+
 Strategie: Laufbänder 1 bis 5 dürfen nur die HäufigenMotortypen 1 bis 5 verarbeiten. Die weniger häufigeren Hinteren Laufbänder verarbeiten so eher weniger häufig auftretende Motoren. 
 
 Verpackte Motoren:				1431
