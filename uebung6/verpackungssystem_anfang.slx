@@ -44,7 +44,7 @@ class HFS(int anzahlHaken_) {
 		my_stop_haken_requests = 0;
 		int i;
 		for (i=0; i<anzahlHaken; i++) {
-			place new Haken(i+1) into haken;
+			place new Haken(anzahlHaken-i) into haken;
 		}
 	}
 
@@ -75,7 +75,9 @@ class HFS(int anzahlHaken_) {
 			hfs_moving=FALSE;
 			
 			//DEBUG
-			print(time) "[_]\thaken stop\n";
+			if(my_stop_haken_requests==1){
+				print(time) "[_]->haken stop\n";
+			}
 		}
 	}
 	procedure start(){
@@ -84,7 +86,7 @@ class HFS(int anzahlHaken_) {
 			hfs_moving=TRUE;
 
 			//DEBUG
-			print(time) "[_]\thaken move\n";
+			print(time) "[_]->haken move\n";
 		}
 	}
 	
@@ -122,7 +124,7 @@ class TestBereich {
 					hfs->stop();
 
 					//DEBUG
-					print(time, my_active_haken->id) "[_]\tTestbereich loads haken _\n";
+					print(time, my_active_haken->id) "[_]\t\tTestbereich loads haken _\n";
 
 					my_active_haken->motor = first Motor in wartende_motoren;
 					remove first Motor from wartende_motoren;
@@ -168,7 +170,7 @@ class LB {
 						//teste ob motorentyp benötigt wird
 						testMotorenTypNeed=TRUE;
 						lastMotor = last Motor in motoren;
-						if(lastMotor != NULL && motoren.size%3 != 0){
+						if(lastMotor != NULL || motoren.size%3 != 0){
 							if(lastMotor->typ != my_active_haken->motor->typ){
 								testMotorenTypNeed=FALSE;
 							}
