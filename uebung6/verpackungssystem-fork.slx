@@ -16,6 +16,7 @@ int anzahlLbs = 9;
 
 double hfsSchrittDauer = 4;
 double verpackZeit = 30;
+double entladezeit = 10;
 
 control boolean stop_haken = FALSE;
 set(LB) lbs; // Menge aller Laufbänder
@@ -42,7 +43,7 @@ class MotorenAnkunft(int mtyp, double aps) {
 		forever{
 			place new Motor(typ) into testBereich->wartende_motoren;
 
-			print(testBereich->wartende_motoren.size) "Warttende motoren: ____\n";
+			//print(time, testBereich->wartende_motoren.size) "[_]\tWarttende motoren: ____\n";
 
 			if(testBereich->wartende_motoren.size > maxWaitingEngines){
 				maxWaitingEngines = testBereich->wartende_motoren.size;
@@ -66,7 +67,7 @@ class HFS(int anzahlHaken_) {
 			place new Haken(i+1) into haken;
 		}
 	}
-	
+
 	procedure stop(){
 		my_stop_haken_requests++;
 		if(my_stop_haken_requests>0){
@@ -89,6 +90,7 @@ class HFS(int anzahlHaken_) {
 				my_last_haken = last Haken in haken;
 				remove last Haken from haken;
 				place my_last_haken into haken before first Haken in haken;
+				
 			}
 		}
 	}
@@ -107,13 +109,13 @@ class TestBereich {
 	actions {
 		forever{
 			my_active_haken = first Haken in hfs->haken; //gibt den haken vor dem testbereich aus
-			if (my_active_haken->motor == NULL && wartende_motoren.size>0 && time%hfsSchrittDauer==0){
+			if (my_active_haken->motor == NULL && wartende_motoren.size>0){
 				hfs->stop();
 				my_active_haken->motor = first Motor in wartende_motoren;
 				remove first Motor from wartende_motoren;
-				print(ME, my_active_haken->motor->typ,my_active_haken->number) "[_]\t\tMotortyp __ auf Haken __ aufgehängt \n";
+				//print(ME, my_active_haken->motor->typ,my_active_haken->number) "[_]\t\tMotortyp __ auf Haken __ aufgehängt \n";
 
-				advance 10;
+				advance entladezeit;
 				hfs->start();
 			}
 			else{
@@ -146,45 +148,46 @@ class LB {
 				hakenAmLb = position(lbPosition+1) in hfs->haken;
 				if (hakenAmLb->motor != NULL && motoren.size < 9){
 
-						//teste ob motorentyp benötigt wird
-						testMotorenTypNeed=TRUE;
-						if(!(lastMotor == NULL || lastMotor->typ == hakenAmLb->motor->typ)){
+					//teste ob motorentyp benötigt wird
+					testMotorenTypNeed=TRUE;
+					if(lastMotor != NULL){
+						if(lastMotor->typ != hakenAmLb->motor->typ){
 							testMotorenTypNeed=FALSE;
 						}
-						if(motoren.size%3 == 0 ){
-							testMotorenTypNeed=TRUE;
-						}
+					}
+					if(motoren.size%3 == 0){
+						testMotorenTypNeed=TRUE;
+					}
 
 
-						//teste ob motorentyp reserviert ist
-						testMotorenTypAvailablity = TRUE;
-						my_LB = ME;
-						while(successor(my_LB) in lbs !=NULL){
-							my_LB=successor(my_LB) in lbs;
-							if(my_LB->motorTyp == hakenAmLb->motor->typ){
-								testMotorenTypAvailablity=FALSE;
-								print (ME, my_LB, hakenAmLb->motor->typ) "[_]\t\t\t\t__ reserviert Motorentyp __\n";
-							}
+					//teste ob motorentyp reserviert ist
+					testMotorenTypAvailablity = TRUE;
+					my_LB = ME;
+					while(successor(my_LB) in lbs !=NULL){
+						my_LB=successor(my_LB) in lbs;
+						if(my_LB->motorTyp == hakenAmLb->motor->typ ||my_LB->motoren.size%3 == 0){
+							testMotorenTypAvailablity=FALSE;
 						}
+					}
 
-						//wenn motor benötigt und nicht reserviert, dann nehme den motor
-						if(testMotorenTypNeed && testMotorenTypAvailablity && time%hfsSchrittDauer==0){
-							hfs->stop();
-							place hakenAmLb->motor into motoren;
-							print(ME, hakenAmLb->motor->typ,hakenAmLb->number, motoren.size) "[_]\t\tMotortyp __ von Haken __ genommen (_ motoren) \n";
-							//motortyp reservieren, wenn noch zusätzliche motoren benötigt werden
-							if(motoren.size%3 == 0){
-								motorTyp = 0;
-							}else{
-								motorTyp = hakenAmLb->motor->typ;
-							}
-							hakenAmLb->motor = NULL;
-							advance 10;
-							hfs->start();
+					//wenn motor benötigt und nicht reserviert, dann nehme den motor
+					if(testMotorenTypNeed && testMotorenTypAvailablity){
+						hfs->stop();
+						place hakenAmLb->motor into motoren;
+						//print(ME, hakenAmLb->motor->typ,hakenAmLb->number, motoren.size) "[_]\t\tMotortyp __ von Haken __ genommen (_ motoren) \n";
+						//motortyp reservieren, wenn noch zusätzliche motoren benötigt werden
+						if(motoren.size%3 == 0){
+							motorTyp = 0;
+						}else{
+							motorTyp = hakenAmLb->motor->typ;
 						}
-						else{
-							advance 1;
-						}
+						hakenAmLb->motor = NULL;
+						advance entladezeit;
+						hfs->start();
+					}
+					else{
+						advance 1;
+					}
 				}
 				else{
 					advance 1;
@@ -196,13 +199,13 @@ class LB {
 		fork{
 			forever{
 				if(motoren.size>=3){
-					print(ME, (first Motor in motoren)->typ) "[_]\t\t\t\t 3 Motoren vom Typ __ versand\n";
+					//print(ME, (first Motor in motoren)->typ) "[_]\t\t\t\t 3 Motoren vom Typ __ versand\n";
 					int i;
 					for (i=0; i<3;i++){
 						countPackedEngines++;
 						aboluteProcessingTime = aboluteProcessingTime + (time - (first Motor in motoren)->erzeugungsZeitpunkt);
 						
-						print(ME, motoren.size, (first Motor in motoren)->typ) "-->[_] size:_ typ:_\n";
+						//print(ME, motoren.size, (first Motor in motoren)->typ) "-->[_] size:_ typ:_\n";
 
 						remove first Motor from motoren;
 					}
@@ -214,6 +217,7 @@ class LB {
 		}
 	}
 }
+
 
 procedure erzeugeLbs(int anzahl) {
 	pointer(LB) lb;
@@ -262,7 +266,7 @@ procedure main() {
 	advance 60*60*24;
 	
 	print "\n\n**********Simulation Analysis**************\n";
-	print(countPackedEngines, maxWaitingEngines, (double) aboluteProcessingTime/countPackedEngines) "Verpackte Motoren:\t\t_\nMaximale Wartseschlange:\t_\nDurchschn. Durchlaufzeit:\t_\n\n";
+	print(countPackedEngines, maxWaitingEngines, (double) aboluteProcessingTime/countPackedEngines/60) "Verpackte Motoren:\t\t_\nMaximale Wartseschlange:\t_\nDurchschn. Durchlaufzeit:\t_\n\n";
 
 	int i;
 	i = 0;
@@ -278,7 +282,7 @@ procedure main() {
 	while(i<anzahlHaken){
 		i++;
 		yy = position(i) in hfs->haken;
-		print(i, yy->motor->typ) "Haken_:\t Motor _\n";
+		//print(i, yy->motor->typ) "Haken_:\t Motor _\n";
 	}
 
 	report(system);
