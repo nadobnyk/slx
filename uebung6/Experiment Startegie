@@ -1,0 +1,8 @@
+Strategie: Laufbänder 1 bis 5 dürfen nur die HäufigenMotortypen 1 bis 5 verarbeiten. Die weniger häufigeren Hinteren Laufbänder verarbeiten so eher weniger häufig auftretende Motoren. 
+
+Verpackte Motoren:				1431
+Maximale Wartseschlange:		17
+Durchschn. Durchlaufzeit:		23
+
+
+Mit dieser Strategie können die Laufbänder als weiterer Puffer (zusätzlich zur HFS) genutzt werden. Es ergibt sich eine verbesserte Ausbeute von 1431 Motoren, bei einem viel geringerem Rückstau an der Teststation (17 Motoren). Gleichzeitig ergibt sich eine etwas höhere Durchlaufzeit von ca 23 minuten pro Motor, da einige Motoren (die weniger häufigen) jetzt länger auf den Laufbändern und der HFS gepuffert werden.

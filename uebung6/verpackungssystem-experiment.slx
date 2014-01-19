@@ -1,0 +1,291 @@
+
+#define SLX2 ON
+public module Analyzer {
+	 int countPackedEngines = 0;
+	 int maxWaitingEngines = 0;
+	 int aboluteProcessingTime = 0;
+}
+
+
+
+module verpackungssystem {
+
+// Zeiteinheit: 1 Sekunde
+
+int anzahlHaken = 40;
+int anzahlLbs = 9;
+
+double hfsSchrittDauer = 4;
+double verpackZeit = 30;
+double entladezeit = 10;
+
+control boolean stop_haken = FALSE;
+set(LB) lbs; // Menge aller Laufbänder
+
+pointer(TestBereich) testBereich;
+pointer(HFS) hfs;
+
+passive class Motor(int mtyp) {
+	int typ = mtyp;
+	double erzeugungsZeitpunkt;
+
+	initial{
+		erzeugungsZeitpunkt = time;
+	}
+}
+
+class MotorenAnkunft(int mtyp, double aps) {
+	int typ=mtyp;
+	double anzahlProStunde=aps;
+	pointer(Motor) my_motor;
+
+	actions {
+		//erstellt motoren alle 3600/aps sekunden
+		forever{
+			place new Motor(typ) into testBereich->wartende_motoren;
+
+			if(testBereich->wartende_motoren.size > maxWaitingEngines){
+				maxWaitingEngines = testBereich->wartende_motoren.size;
+			}
+			advance (3600/anzahlProStunde);
+		}
+	}
+}
+
+class HFS(int anzahlHaken_) {
+	int anzahlHaken = anzahlHaken_;
+	set(Haken) haken;
+	pointer(Haken) my_last_haken;
+	int my_stop_haken_requests;
+	
+	initial {
+		my_stop_haken_requests = 0;
+		int i;
+		for (i=0; i<anzahlHaken; i++) {
+			place new Haken(i+1) into haken;
+		}
+	}
+
+	procedure stop(){
+		my_stop_haken_requests++;
+		if(my_stop_haken_requests>0){
+			if(!stop_haken){
+			//print(time) "[_]...STOP...\n";
+			}
+		stop_haken=TRUE;
+		}
+	}
+	procedure start(){
+		my_stop_haken_requests--;
+		if(my_stop_haken_requests==0){
+			stop_haken=FALSE;
+			//print(time) "[_]...START...\n";
+		}
+	}
+	actions {
+		forever{
+			if(!stop_haken){
+				my_last_haken = last Haken in haken;
+				remove last Haken from haken;
+				place my_last_haken into haken before first Haken in haken;
+				//print "rotate\n";
+				advance hfsSchrittDauer;
+			}else{
+				wait until(!stop_haken);
+			}
+		}
+	}
+}
+
+passive class Haken (int id) {
+	pointer(Motor) motor;
+	int number = id;
+}
+
+// Der Testbereich hängt die Motoren in der
+// Reihenfolge ihrer Ankunft auf der HFS auf.
+class TestBereich {
+	set(Motor) wartende_motoren;
+	pointer(Haken) my_active_haken;
+	actions {
+		forever{
+			my_active_haken = first Haken in hfs->haken; //gibt den haken vor dem testbereich aus
+			if (my_active_haken->motor == NULL && wartende_motoren.size>0){
+				hfs->stop();
+				my_active_haken->motor = first Motor in wartende_motoren;
+				remove first Motor from wartende_motoren;
+				//print(time, my_active_haken->motor->typ, my_active_haken->number) "[_].....Motortyp_->Haken_\n";
+				advance entladezeit;
+				hfs->start();
+			}
+			else{
+				advance 1;
+			}
+		}
+	}
+}
+
+class LB {
+	int lbPosition; // Position des Laufbands im Raum, LB 1 befindet sich vor Haken-Index 2
+	set(Motor) motoren; // Zustand der Palette
+	int motorTyp; // aktuell benötigter Typ
+	boolean testMotorenTypNeed;
+	boolean testMotorenTypAvailablity;
+
+	
+	actions {
+		motorTyp = 0;
+		lbPosition= position(ME) in lbs;
+		pointer(Haken) hakenAmLb;
+		pointer(Motor) lastMotor;
+		pointer(LB) my_LB;
+		
+		//motoren abnehmen
+		fork{
+			forever{
+				//prüfe, ob aktueller motor am haken von laufband benötigt wird (wenn motor vorhanden, platz auf laufband und richtiger motorentyp
+
+				testMotorenTypNeed = TRUE;
+				testMotorenTypAvailablity = TRUE;
+
+				lastMotor = last Motor in motoren;
+				hakenAmLb = position(lbPosition+1) in hfs->haken;
+
+				if (hakenAmLb->motor != NULL && motoren.size < 9){
+
+					//teste ob motorentyp benötigt wird
+					if(lastMotor != NULL){
+						if(lastMotor->typ != hakenAmLb->motor->typ && motoren.size%3 != 0){
+							testMotorenTypNeed=FALSE;
+						}
+					}
+
+
+					//teste ob motorentyp reserviert ist
+					my_LB = ME;
+					while(successor(my_LB) in lbs !=NULL){
+						my_LB=successor(my_LB) in lbs;
+						if(my_LB->motorTyp == hakenAmLb->motor->typ || my_LB->motoren.size%3 == 0){
+							testMotorenTypAvailablity=FALSE;
+						}
+						//Laufbänder 1-5 dürfen nur Motoren vom Typ 1-5 verarbeiten, um Stau zu vermeiden
+						if(hakenAmLb->motor->typ>5 && lbPosition<6){
+							testMotorenTypAvailablity=FALSE;
+						}
+					}
+
+					//wenn motor benötigt und nicht reserviert, dann nehme den motor
+					if(testMotorenTypNeed && testMotorenTypAvailablity){
+						hfs->stop();
+						advance entladezeit;
+						place hakenAmLb->motor into motoren;
+						//print(time, ME, hakenAmLb->motor->typ, hakenAmLb->number) "[_]....._:Motortyp_ (Haken_)\n";
+						//motortyp reservieren, wenn noch zusätzliche motoren benötigt werden
+						if(motoren.size%3 == 0){
+							motorTyp = 0;
+						}else{
+							motorTyp = hakenAmLb->motor->typ;
+						}
+						hakenAmLb->motor = NULL;
+						hfs->start();
+					}
+					else{
+						advance 1;
+					}
+				}
+				else{
+					advance 1;
+				}
+			}		
+		}
+
+		//motoren verpacken
+		fork{
+			forever{
+				if(motoren.size>=3){
+					int i;
+					for (i=0; i<3;i++){
+						countPackedEngines++;
+						aboluteProcessingTime = aboluteProcessingTime + (time - (first Motor in motoren)->erzeugungsZeitpunkt);
+						remove first Motor from motoren;
+					}
+					advance verpackZeit;
+				}else{
+					advance 1;
+				}
+			}
+		}
+	}
+}
+
+
+procedure erzeugeLbs(int anzahl) {
+	pointer(LB) lb;
+	int i;
+	for (i=0; i<anzahl; i++) {
+		lb = new LB();
+		place lb into lbs;
+		activate lb;
+	}
+}
+
+procedure erzeugeMotorenAnkunftsProzess(int mtyp, double anzahlProStunde) {
+	pointer(MotorenAnkunft) ma;
+	ma = new MotorenAnkunft(mtyp,anzahlProStunde);
+	activate ma;
+}
+
+procedure main() {
+
+	hfs = new HFS(anzahlHaken);
+	activate hfs;
+	
+	erzeugeLbs(anzahlLbs);
+	
+	testBereich = new TestBereich();
+	activate testBereich;
+	
+	erzeugeMotorenAnkunftsProzess( 3, 9);
+	erzeugeMotorenAnkunftsProzess( 4, 9);
+	erzeugeMotorenAnkunftsProzess( 5, 6);
+	erzeugeMotorenAnkunftsProzess( 1, 13);
+	erzeugeMotorenAnkunftsProzess( 2, 11);
+	erzeugeMotorenAnkunftsProzess( 6, 1.5);
+	erzeugeMotorenAnkunftsProzess( 9, 1.5);
+	erzeugeMotorenAnkunftsProzess(13, 1);
+	erzeugeMotorenAnkunftsProzess(14, 0.5);
+	erzeugeMotorenAnkunftsProzess(15, 0.5);
+	erzeugeMotorenAnkunftsProzess(10, 1);
+	erzeugeMotorenAnkunftsProzess(11, 1);
+	erzeugeMotorenAnkunftsProzess(12, 1);
+	erzeugeMotorenAnkunftsProzess( 7, 1.5);
+	erzeugeMotorenAnkunftsProzess( 8, 1.5);
+	erzeugeMotorenAnkunftsProzess(16, 0.5);
+	erzeugeMotorenAnkunftsProzess(17, 0.5);
+	
+	advance 60*60*24;
+	
+	print "\n\n**********Simulation Analysis**************\n";
+	print(countPackedEngines, maxWaitingEngines, (double) aboluteProcessingTime/countPackedEngines/60) "Verpackte Motoren:\t\t_.__\nMaximale Wartseschlange:\t_\nDurchschn. Durchlaufzeit:\t\t_\n\n";
+
+	int i;
+	i = 0;
+	pointer(LB) xx;
+	while(i<anzahlLbs){
+		i++;
+		xx = position(i) in lbs;
+		print(i, xx->motoren.size, xx->lastMotor->typ) "LB_:\t_ Motoren vom Typ _\n";
+	}
+
+	i = 0;
+	pointer(Haken) yy;
+	while(i<anzahlHaken){
+		i++;
+		yy = position(i) in hfs->haken;
+		print(i, yy->motor->typ) "Haken_:\t Motor _\n";
+	}
+
+	report(system);
+}
+
+}
